@@ -1,26 +1,32 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
 		fmt.Println("PipeProf — CI/CD Pipeline Performance Analyzer")
-		fmt.Println("Usage: pipeprof <workflow.yml> [--json]")
-		fmt.Println("       pipeprof analyze <workflow.yml> [--json]")
+		fmt.Println("Usage: pipeprof <workflow.yml> [--format table|json]")
+		fmt.Println("       pipeprof analyze <workflow.yml> [--format table|json]")
 		os.Exit(0)
 	}
-	jsonMode := false
+	format := "table"
 	path := ""
-	for _, a := range args {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		switch {
 		case a == "--json":
-			jsonMode = true
-		case a != "analyze":
+			format = "json"
+		case a == "--format" && i+1 < len(args):
+			format = args[i+1]
+			i++
+		case strings.HasPrefix(a, "--format="):
+			format = a[len("--format="):]
+		case a != "analyze" && !strings.HasPrefix(a, "--"):
 			path = a
 		}
 	}
@@ -34,12 +40,16 @@ func main() {
 		os.Exit(1)
 	}
 	report := Analyze(data)
-	if jsonMode {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		enc.Encode(report)
-	} else {
-		printReport(report)
+	analysisReport := BuildAnalysisReport(data, report)
+
+	switch format {
+	case "json":
+		FormatJSON(analysisReport, os.Stdout)
+	case "table":
+		FormatTable(analysisReport, os.Stdout)
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unknown format %q (use 'table' or 'json')\n", format)
+		os.Exit(1)
 	}
 }
 
